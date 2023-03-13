@@ -277,4 +277,9 @@ def get_platform_client_backend_type() -> Type[BaseBleakClient]:
 
         return BleakClientWinRT
 
+    if platform.system() == "FreeBSD":
+        from bleak.backends.netgraph.client import BleakClientNetgraph
+
+        return BleakClientNetgraph
+
     raise BleakError(f"Unsupported platform: {platform.system()}")

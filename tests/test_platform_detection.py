@@ -24,3 +24,6 @@ def test_platform_detection():
     elif platform.system() == "Darwin":
         assert client_backend_type.__name__ == "BleakClientCoreBluetooth"
         assert scanner_backend_type.__name__ == "BleakScannerCoreBluetooth"
+    elif platform.system() == "FreeBSD":
+        assert client_backend_type.__name__ == "BleakClientNetgraph"
+        assert scanner_backend_type.__name__ == "BleakScannerNetgraph"

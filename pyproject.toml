@@ -14,6 +14,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Android",
+    "Operating System :: FreeBSD",
 ]
 
 [tool.poetry.urls]
