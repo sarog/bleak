@@ -22,6 +22,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -68,6 +69,10 @@ if bool(os.environ.get("BLEAK_LOGGING", False)):
     handler.setFormatter(logging.Formatter(fmt=FORMAT))
     _logger.addHandler(handler)
     _logger.setLevel(logging.DEBUG)
+
+
+# prevent tasks from being garbage collected
+_background_tasks: Set[asyncio.Task] = set()
 
 
 class BleakScanner:
@@ -441,7 +446,9 @@ class BleakClient:
 
         self._backend = PlatformBleakClient(
             address_or_ble_device,
-            disconnected_callback=disconnected_callback,
+            disconnected_callback=None
+            if disconnected_callback is None
+            else functools.partial(disconnected_callback, self),
             services=None
             if services is None
             else set(map(normalize_uuid_str, services)),
@@ -507,7 +514,9 @@ class BleakClient:
             FutureWarning,
             stacklevel=2,
         )
-        self._backend.set_disconnected_callback(callback, **kwargs)
+        self._backend.set_disconnected_callback(
+            None if callback is None else functools.partial(callback, self), **kwargs
+        )
 
     async def connect(self, **kwargs) -> bool:
         """Connect to the specified GATT server.
@@ -698,7 +707,9 @@ class BleakClient:
         if inspect.iscoroutinefunction(callback):
 
             def wrapped_callback(data):
-                asyncio.ensure_future(callback(characteristic, data))
+                task = asyncio.create_task(callback(characteristic, data))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
 
         else:
             wrapped_callback = functools.partial(callback, characteristic)
