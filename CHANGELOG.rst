@@ -10,11 +10,23 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 `Unreleased`_
 =============
 
+`0.21.1`_ (2023-09-08)
+======================
+
+Changed
+-------
+* Changed ``dbus-fast`` dependency to include v2.x. Fixes #1412.
+
+`0.21.0`_ (2023-09-02)
+======================
+
 Added
 -----
 * Added ``bleak.uuids.normalize_uuid_16()`` function.
 * Added ``bleak.uuids.normalize_uuid_32()`` function.
 * Added ``advertisement_data()`` async iterator method to ``BleakScanner``. Merged #1361.
+* Added type hints for kwargs on ``BleakScanner`` class methods.
+* Added support for Python 3.12.
 
 Changed
 -------
@@ -23,6 +35,10 @@ Changed
 * Scanner backends modified to allow multiple advertisement callbacks. Merged #1367.
 * Changed default handling of the ``response`` argument in ``BleakClient.write_gatt_char``.
   Fixes #909.
+* Bleak recipe now automatically installs bleak from GitHub release in Kivy example.
+* Changed `BlueZManager` methods to raise `BleakError` when device is not in BlueZ.
+* Optimized BlueZ backend device watchers and condition callbacks to avoid linear searches.
+* Changed type hint for buffer protocol to ``collections.abc.Buffer``.
 
 Fixed
 -----
@@ -31,6 +47,13 @@ Fixed
 * Fixed typing for ``BaseBleakScanner`` detection callback.
 * Fixed possible crash in ``_stopped_handler()`` in WinRT backend. Fixes #1330.
 * Reduced expensive logging in the BlueZ backend. Merged #1376.
+* Fixed race condition with ``"InterfaceRemoved"`` when getting services in BlueZ backend.
+* Fixed missing permissions and requirements in android Kivy example. Fixes #1184.
+* Fixed WinRT backend sometimes hanging forever when a device goes out of range during connection. Fixes #1359.
+
+Removed
+-------
+Dropped support for Python 3.7.
 
 `0.20.2`_ (2023-04-19)
 ======================
@@ -962,7 +985,9 @@ Fixed
 * Bleak created.
 
 
-.. _Unreleased: https://github.com/hbldh/bleak/compare/v0.20.2...develop
+.. _Unreleased: https://github.com/hbldh/bleak/compare/v0.21.1...develop
+.. _0.21.1: https://github.com/hbldh/bleak/compare/v0.21.0...v0.21.1
+.. _0.21.0: https://github.com/hbldh/bleak/compare/v0.20.2...v0.21.0
 .. _0.20.2: https://github.com/hbldh/bleak/compare/v0.20.1...v0.20.2
 .. _0.20.1: https://github.com/hbldh/bleak/compare/v0.20.0...v0.20.1
 .. _0.20.0: https://github.com/hbldh/bleak/compare/v0.19.5...v0.20.0

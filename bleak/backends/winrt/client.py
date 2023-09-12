@@ -10,50 +10,95 @@ import logging
 import sys
 import uuid
 import warnings
-from ctypes import pythonapi
-from typing import Any, Dict, List, Optional, Sequence, Set, Union, cast
+from ctypes import WinError
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Set,
+    TypedDict,
+    Union,
+    cast,
+)
+
+if sys.version_info < (3, 12):
+    from typing_extensions import Buffer
+else:
+    from collections.abc import Buffer
 
 if sys.version_info < (3, 11):
     from async_timeout import timeout as async_timeout
 else:
     from asyncio import timeout as async_timeout
 
-if sys.version_info[:2] < (3, 8):
-    from typing_extensions import Literal, TypedDict
+if sys.version_info >= (3, 12):
+    from winrt.windows.devices.bluetooth import (
+        BluetoothAddressType,
+        BluetoothCacheMode,
+        BluetoothError,
+        BluetoothLEDevice,
+    )
+    from winrt.windows.devices.bluetooth.genericattributeprofile import (
+        GattCharacteristic,
+        GattCharacteristicProperties,
+        GattClientCharacteristicConfigurationDescriptorValue,
+        GattCommunicationStatus,
+        GattDescriptor,
+        GattDeviceService,
+        GattSession,
+        GattSessionStatus,
+        GattSessionStatusChangedEventArgs,
+        GattValueChangedEventArgs,
+        GattWriteOption,
+    )
+    from winrt.windows.devices.enumeration import (
+        DeviceInformation,
+        DevicePairingKinds,
+        DevicePairingResultStatus,
+        DeviceUnpairingResultStatus,
+    )
+    from winrt.windows.foundation import (
+        AsyncStatus,
+        EventRegistrationToken,
+        IAsyncOperation,
+    )
+    from winrt.windows.storage.streams import Buffer as WinBuffer
 else:
-    from typing import Literal, TypedDict
-
-from bleak_winrt.windows.devices.bluetooth import (
-    BluetoothAddressType,
-    BluetoothCacheMode,
-    BluetoothError,
-    BluetoothLEDevice,
-)
-from bleak_winrt.windows.devices.bluetooth.genericattributeprofile import (
-    GattCharacteristic,
-    GattCharacteristicProperties,
-    GattClientCharacteristicConfigurationDescriptorValue,
-    GattCommunicationStatus,
-    GattDescriptor,
-    GattDeviceService,
-    GattSession,
-    GattSessionStatus,
-    GattSessionStatusChangedEventArgs,
-    GattValueChangedEventArgs,
-    GattWriteOption,
-)
-from bleak_winrt.windows.devices.enumeration import (
-    DeviceInformation,
-    DevicePairingKinds,
-    DevicePairingResultStatus,
-    DeviceUnpairingResultStatus,
-)
-from bleak_winrt.windows.foundation import (
-    AsyncStatus,
-    EventRegistrationToken,
-    IAsyncOperation,
-)
-from bleak_winrt.windows.storage.streams import Buffer
+    from bleak_winrt.windows.devices.bluetooth import (
+        BluetoothAddressType,
+        BluetoothCacheMode,
+        BluetoothError,
+        BluetoothLEDevice,
+    )
+    from bleak_winrt.windows.devices.bluetooth.genericattributeprofile import (
+        GattCharacteristic,
+        GattCharacteristicProperties,
+        GattClientCharacteristicConfigurationDescriptorValue,
+        GattCommunicationStatus,
+        GattDescriptor,
+        GattDeviceService,
+        GattSession,
+        GattSessionStatus,
+        GattSessionStatusChangedEventArgs,
+        GattValueChangedEventArgs,
+        GattWriteOption,
+    )
+    from bleak_winrt.windows.devices.enumeration import (
+        DeviceInformation,
+        DevicePairingKinds,
+        DevicePairingResultStatus,
+        DeviceUnpairingResultStatus,
+    )
+    from bleak_winrt.windows.foundation import (
+        AsyncStatus,
+        EventRegistrationToken,
+        IAsyncOperation,
+    )
+    from bleak_winrt.windows.storage.streams import Buffer as WinBuffer
 
 from ... import BleakScanner
 from ...exc import PROTOCOL_ERROR_CODES, BleakDeviceNotFoundError, BleakError
@@ -68,10 +113,10 @@ from .service import BleakGATTServiceWinRT
 
 logger = logging.getLogger(__name__)
 
-# TODO: we can use this when minimum Python is 3.8
-# class _Result(typing.Protocol):
-#     status: GattCommunicationStatus
-#     protocol_error: typing.Optional[int]
+
+class _Result(Protocol):
+    status: GattCommunicationStatus
+    protocol_error: int
 
 
 def _address_to_int(address: str) -> int:
@@ -90,7 +135,7 @@ def _address_to_int(address: str) -> int:
     return int(address, base=16)
 
 
-def _ensure_success(result: Any, attr: Optional[str], fail_msg: str) -> Any:
+def _ensure_success(result: _Result, attr: Optional[str], fail_msg: str) -> Any:
     """
     Ensures that *status* is ``GattCommunicationStatus.SUCCESS``, otherwise
     raises ``BleakError``.
@@ -469,6 +514,11 @@ class BleakClientWinRT(BaseBleakClient):
 
         # Dispose all service components that we have requested and created.
         if self.services:
+            # HACK: sometimes GattDeviceService.Close() hangs forever, so we
+            # add a delay to give the Windows Bluetooth stack some time to
+            # "settle" before closing the services
+            await asyncio.sleep(0.1)
+
             for service in self.services:
                 service.obj.close()
             self.services = None
@@ -683,7 +733,6 @@ class BleakClientWinRT(BaseBleakClient):
 
         try:
             for service in services:
-
                 result = await FutureLike(service.get_characteristics_async(*args))
 
                 if result.status == GattCommunicationStatus.ACCESS_DENIED:
@@ -729,6 +778,12 @@ class BleakClientWinRT(BaseBleakClient):
             # Don't leak services. WinRT is quite particular about services
             # being closed.
             logger.debug("disposing service objects")
+
+            # HACK: sometimes GattDeviceService.Close() hangs forever, so we
+            # add a delay to give the Windows Bluetooth stack some time to
+            # "settle" before closing the services
+            await asyncio.sleep(0.1)
+
             for service in services:
                 service.close()
             raise
@@ -825,7 +880,7 @@ class BleakClientWinRT(BaseBleakClient):
     async def write_gatt_char(
         self,
         characteristic: BleakGATTCharacteristic,
-        data: Union[bytes, bytearray, memoryview],
+        data: Buffer,
         response: bool,
     ) -> None:
         if not self.is_connected:
@@ -836,7 +891,7 @@ class BleakClientWinRT(BaseBleakClient):
             if response
             else GattWriteOption.WRITE_WITHOUT_RESPONSE
         )
-        buf = Buffer(len(data))
+        buf = WinBuffer(len(data))
         buf.length = buf.capacity
         with memoryview(buf) as mv:
             mv[:] = data
@@ -846,14 +901,12 @@ class BleakClientWinRT(BaseBleakClient):
             f"Could not write value {data} to characteristic {characteristic.handle:04X}",
         )
 
-    async def write_gatt_descriptor(
-        self, handle: int, data: Union[bytes, bytearray, memoryview]
-    ) -> None:
+    async def write_gatt_descriptor(self, handle: int, data: Buffer) -> None:
         """Perform a write operation on the specified GATT descriptor.
 
         Args:
-            handle (int): The handle of the descriptor to read from.
-            data (bytes or bytearray): The data to send.
+            handle: The handle of the descriptor to read from.
+            data: The data to send (any bytes-like object).
 
         """
         if not self.is_connected:
@@ -863,7 +916,7 @@ class BleakClientWinRT(BaseBleakClient):
         if not descriptor:
             raise BleakError(f"Descriptor with handle {handle} was not found!")
 
-        buf = Buffer(len(data))
+        buf = WinBuffer(len(data))
         buf.length = buf.capacity
         with memoryview(buf) as mv:
             mv[:] = data
@@ -1016,7 +1069,7 @@ class FutureLike:
                 raise asyncio.CancelledError
 
             error_code = self._op.error_code.value
-            pythonapi.PyErr_SetFromWindowsErr(error_code)
+            raise WinError(error_code)
 
     def done(self) -> bool:
         return self._op.status != AsyncStatus.STARTED
@@ -1058,10 +1111,7 @@ class FutureLike:
 
             error_code = self._op.error_code.value
 
-            try:
-                pythonapi.PyErr_SetFromWindowsErr(error_code)
-            except OSError as e:
-                return e
+            return WinError(error_code)
 
     def get_loop(self) -> asyncio.AbstractEventLoop:
         return self._loop

@@ -26,20 +26,25 @@ from typing import (
     Set,
     Tuple,
     Type,
+    TypedDict,
     Union,
     overload,
 )
 from warnings import warn
+from typing import Literal
+
+if sys.version_info < (3, 12):
+    from typing_extensions import Buffer
+else:
+    from collections.abc import Buffer
 
 if sys.version_info < (3, 11):
     from async_timeout import timeout as async_timeout
+    from typing_extensions import Unpack
 else:
     from asyncio import timeout as async_timeout
+    from typing import Unpack
 
-if sys.version_info[:2] < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
 
 from .backends.characteristic import BleakGATTCharacteristic
 from .backends.client import BaseBleakClient, get_platform_client_backend_type
@@ -240,6 +245,38 @@ class BleakScanner:
         finally:
             unregister_callback()
 
+    class ExtraArgs(TypedDict):
+        """
+        Keyword args from :class:`~bleak.BleakScanner` that can be passed to
+        other convenience methods.
+        """
+
+        service_uuids: List[str]
+        """
+        Optional list of service UUIDs to filter on. Only advertisements
+        containing this advertising data will be received. Required on
+        macOS >= 12.0, < 12.3 (unless you create an app with ``py2app``).
+        """
+        scanning_mode: Literal["active", "passive"]
+        """
+        Set to ``"passive"`` to avoid the ``"active"`` scanning mode.
+        Passive scanning is not supported on macOS! Will raise
+        :class:`BleakError` if set to ``"passive"`` on macOS.
+        """
+        bluez: BlueZScannerArgs
+        """
+        Dictionary of arguments specific to the BlueZ backend.
+        """
+        cb: CBScannerArgs
+        """
+        Dictionary of arguments specific to the CoreBluetooth backend.
+        """
+        backend: Type[BaseBleakScanner]
+        """
+        Used to override the automatically selected backend (i.e. for a
+            custom backend).
+        """
+
     @overload
     @classmethod
     async def discover(
@@ -255,7 +292,9 @@ class BleakScanner:
         ...
 
     @classmethod
-    async def discover(cls, timeout=5.0, *, return_adv=False, **kwargs):
+    async def discover(
+        cls, timeout=5.0, *, return_adv=False, **kwargs: Unpack[ExtraArgs]
+    ):
         """
         Scan continuously for ``timeout`` seconds and return discovered devices.
 
@@ -329,7 +368,7 @@ class BleakScanner:
 
     @classmethod
     async def find_device_by_address(
-        cls, device_identifier: str, timeout: float = 10.0, **kwargs
+        cls, device_identifier: str, timeout: float = 10.0, **kwargs: Unpack[ExtraArgs]
     ) -> Optional[BLEDevice]:
         """Obtain a ``BLEDevice`` for a BLE server specified by Bluetooth address or (macOS) UUID address.
 
@@ -351,7 +390,7 @@ class BleakScanner:
 
     @classmethod
     async def find_device_by_name(
-        cls, name: str, timeout: float = 10.0, **kwargs
+        cls, name: str, timeout: float = 10.0, **kwargs: Unpack[ExtraArgs]
     ) -> Optional[BLEDevice]:
         """Obtain a ``BLEDevice`` for a BLE server specified by the local name in the advertising data.
 
@@ -373,7 +412,10 @@ class BleakScanner:
 
     @classmethod
     async def find_device_by_filter(
-        cls, filterfunc: AdvertisementDataFilter, timeout: float = 10.0, **kwargs
+        cls,
+        filterfunc: AdvertisementDataFilter,
+        timeout: float = 10.0,
+        **kwargs: Unpack[ExtraArgs],
     ) -> Optional[BLEDevice]:
         """Obtain a ``BLEDevice`` for a BLE server that matches a given filter function.
 
@@ -671,7 +713,7 @@ class BleakClient:
     async def write_gatt_char(
         self,
         char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID],
-        data: Union[bytes, bytearray, memoryview],
+        data: Buffer,
         response: bool = None,
     ) -> None:
         """
@@ -822,9 +864,7 @@ class BleakClient:
         """
         return await self._backend.read_gatt_descriptor(handle, **kwargs)
 
-    async def write_gatt_descriptor(
-        self, handle: int, data: Union[bytes, bytearray, memoryview]
-    ) -> None:
+    async def write_gatt_descriptor(self, handle: int, data: Buffer) -> None:
         """
         Perform a write operation on the specified GATT descriptor.
 

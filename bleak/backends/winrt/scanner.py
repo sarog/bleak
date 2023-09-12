@@ -1,21 +1,25 @@
 import asyncio
 import logging
 import sys
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, Literal, NamedTuple, Optional
 from uuid import UUID
 
-from bleak_winrt.windows.devices.bluetooth.advertisement import (
-    BluetoothLEAdvertisementReceivedEventArgs,
-    BluetoothLEAdvertisementType,
-    BluetoothLEAdvertisementWatcher,
-    BluetoothLEAdvertisementWatcherStatus,
-    BluetoothLEScanningMode,
-)
-
-if sys.version_info[:2] < (3, 8):
-    from typing_extensions import Literal
+if sys.version_info >= (3, 12):
+    from winrt.windows.devices.bluetooth.advertisement import (
+        BluetoothLEAdvertisementReceivedEventArgs,
+        BluetoothLEAdvertisementType,
+        BluetoothLEAdvertisementWatcher,
+        BluetoothLEAdvertisementWatcherStatus,
+        BluetoothLEScanningMode,
+    )
 else:
-    from typing import Literal
+    from bleak_winrt.windows.devices.bluetooth.advertisement import (
+        BluetoothLEAdvertisementReceivedEventArgs,
+        BluetoothLEAdvertisementType,
+        BluetoothLEAdvertisementWatcher,
+        BluetoothLEAdvertisementWatcherStatus,
+        BluetoothLEScanningMode,
+    )
 
 from ...assigned_numbers import AdvertisementDataType
 from ...uuids import normalize_uuid_str
