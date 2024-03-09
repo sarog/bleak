@@ -18,11 +18,13 @@ Changed
 -------
 * Updated PyObjC dependency on macOS to v10.x.
 * Updated missing Bluetooth SIG characteristics and service UUIDs.
+* Updated ``BlueZManager`` to remove empty interfaces from `_properties` during InterfacesRemoved message.
 
 Fixed
 -----
 * Fixed BlueZ version in passive scanning error message. Fixes #1433.
 * Fixed mypy requiring ``Unpack[ExtraArgs]`` that were intended to be optional.  Fixes #1487.
+* Fixed ``KeyError`` in BlueZ ``is_connected()`` and ``get_global_bluez_manager()`` when device is not present. Fixes #1507.
 
 `0.21.1`_ (2023-09-08)
 ======================
