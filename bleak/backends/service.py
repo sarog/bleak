@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 from uuid import UUID
 
 from ..exc import BleakError
-from ..uuids import uuidstr_to_str, normalize_uuid_str
+from ..uuids import normalize_uuid_str, uuidstr_to_str
 from .characteristic import BleakGATTCharacteristic
 from .descriptor import BleakGATTDescriptor
 
@@ -176,10 +176,12 @@ class BleakGATTServiceCollection:
         if isinstance(specifier, int):
             return self.characteristics.get(specifier)
 
+        uuid = normalize_uuid_str(str(specifier))
+
         # Assume uuid usage.
         x = list(
             filter(
-                lambda x: x.uuid == str(specifier).lower(),
+                lambda x: x.uuid == uuid,
                 self.characteristics.values(),
             )
         )

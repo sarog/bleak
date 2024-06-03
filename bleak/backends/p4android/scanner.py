@@ -233,6 +233,9 @@ class BleakScannerP4Android(BaseBleakScanner):
         if service_uuids is not None:
             service_uuids = [service_uuid.toString() for service_uuid in service_uuids]
 
+        if not self.is_allowed_uuid(service_uuids):
+            return
+
         manufacturer_data = record.getManufacturerSpecificData()
         manufacturer_data = {
             manufacturer_data.keyAt(index): bytes(manufacturer_data.valueAt(index))
@@ -243,10 +246,10 @@ class BleakScannerP4Android(BaseBleakScanner):
             entry.getKey().toString(): bytes(entry.getValue())
             for entry in record.getServiceData().entrySet()
         }
-        tx_power = result.getTxPower()
+        tx_power = record.getTxPowerLevel()
 
         # change "not present" value to None to match other backends
-        if tx_power == defs.ScanResult.TX_POWER_NOT_PRESENT:
+        if tx_power == -2147483648:  # Integer#MIN_VALUE
             tx_power = None
 
         advertisement = AdvertisementData(

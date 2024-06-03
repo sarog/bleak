@@ -33,14 +33,14 @@ from ..service import BleakGATTServiceCollection
 from . import defs
 from .advertisement_monitor import AdvertisementMonitor, OrPatternLike
 from .characteristic import BleakGATTCharacteristicBlueZDBus
-from .defs import Device1, GattService1, GattCharacteristic1, GattDescriptor1
+from .defs import Device1, GattCharacteristic1, GattDescriptor1, GattService1
 from .descriptor import BleakGATTDescriptorBlueZDBus
 from .service import BleakGATTServiceBlueZDBus
 from .signals import MatchRules, add_match
 from .utils import (
     assert_reply,
-    get_dbus_authenticator,
     device_path_from_characteristic_path,
+    get_dbus_authenticator,
 )
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ class BlueZManager:
 
         return value
 
-    async def async_init(self):
+    async def async_init(self) -> None:
         """
         Connects to the D-Bus message bus and begins monitoring signals.
 
@@ -552,7 +552,7 @@ class BlueZManager:
                 # won't use the monitor
                 self._bus.export(monitor_path, monitor)
 
-                async def stop():
+                async def stop() -> None:
                     # need to remove callbacks first, otherwise we get TxPower
                     # and RSSI properties removed during stop which causes
                     # incorrect advertisement data callbacks
@@ -696,7 +696,7 @@ class BlueZManager:
                     service.handle,
                     # "MTU" property was added in BlueZ 5.62, otherwise fall
                     # back to minimum MTU according to Bluetooth spec.
-                    char_props.get("MTU", 23) - 3,
+                    lambda: char_props.get("MTU", 23) - 3,
                 )
 
                 services.add_characteristic(char)
@@ -812,8 +812,9 @@ class BlueZManager:
 
         event = asyncio.Event()
 
-        def callback(_: str):
-            event.set()
+        def callback(o: str) -> None:
+            if o == device_path:
+                event.set()
 
         device_removed_callback_and_state = DeviceRemovedCallbackAndState(
             callback, self._properties[device_path][defs.DEVICE_INTERFACE]["Adapter"]
@@ -867,7 +868,7 @@ class BlueZManager:
             if not device_callbacks:
                 del condition_callbacks[device_path]
 
-    def _parse_msg(self, message: Message):
+    def _parse_msg(self, message: Message) -> None:
         """
         Handles callbacks from dbus_fast.
         """

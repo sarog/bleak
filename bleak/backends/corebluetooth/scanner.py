@@ -92,6 +92,13 @@ class BleakScannerCoreBluetooth(BaseBleakScanner):
 
         def callback(p: CBPeripheral, a: Dict[str, Any], r: int) -> None:
 
+            service_uuids = [
+                cb_uuid_to_str(u) for u in a.get("kCBAdvDataServiceUUIDs", [])
+            ]
+
+            if not self.is_allowed_uuid(service_uuids):
+                return
+
             # Process service data
             service_data_dict_raw = a.get("kCBAdvDataServiceData", {})
             service_data = {
@@ -107,10 +114,6 @@ class BleakScannerCoreBluetooth(BaseBleakScanner):
                 )
                 manufacturer_value = bytes(manufacturer_binary_data[2:])
                 manufacturer_data[manufacturer_id] = manufacturer_value
-
-            service_uuids = [
-                cb_uuid_to_str(u) for u in a.get("kCBAdvDataServiceUUIDs", [])
-            ]
 
             # set tx_power data if available
             tx_power = a.get("kCBAdvDataTxPowerLevel")
@@ -130,6 +133,11 @@ class BleakScannerCoreBluetooth(BaseBleakScanner):
                 address_bytes: bytes = (
                     self._manager.central_manager.retrieveAddressForPeripheral_(p)
                 )
+                if address_bytes is None:
+                    logger.debug(
+                        "Could not get Bluetooth address for %s. Ignoring this device.",
+                        p.identifier().UUIDString(),
+                    )
                 address = address_bytes.hex(":").upper()
             else:
                 address = p.identifier().UUIDString()
