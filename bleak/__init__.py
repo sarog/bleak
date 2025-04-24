@@ -70,7 +70,7 @@ _logger = logging.getLogger(__name__)
 _logger.addHandler(logging.NullHandler())
 if bool(os.environ.get("BLEAK_LOGGING", False)):
     FORMAT = "%(asctime)-15s %(name)-8s %(threadName)s %(levelname)s: %(message)s"
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter(fmt=FORMAT))
     _logger.addHandler(handler)
@@ -724,7 +724,7 @@ class BleakClient:
         self,
         char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID],
         data: Buffer,
-        response: bool = None,
+        response: Optional[bool] = None,
     ) -> None:
         r"""
         Perform a write operation on the specified GATT characteristic.
@@ -737,10 +737,6 @@ class BleakClient:
         Each characteristic may support one kind or the other or both or neither.
         Consult the device's documentation or inspect the properties of the
         characteristic to find out which kind of writes are supported.
-
-        .. tip:: Explicit is better than implicit. Best practice is to always
-            include an explicit ``response=True`` or ``response=False``
-            when calling this method.
 
         Args:
             char_specifier:
@@ -758,11 +754,19 @@ class BleakClient:
             response:
                 If ``True``, a write-with-response operation will be used. If
                 ``False``, a write-without-response operation will be used.
-                If omitted or ``None``, the "best" operation will be used
-                based on the reported properties of the characteristic.
+                Omitting the argument is deprecated and may raise a warning.
+                If this arg is omitted, the default behavior is to check the
+                characteristic properties to see if the "write" property is
+                present. If it is, a write-with-response operation will be
+                used. Note: some devices may incorrectly report or omit the
+                property, which is why an explicit argument is encouraged.
 
         .. versionchanged:: 0.21
             The default behavior when ``response=`` is omitted was changed.
+
+        .. versionchanged:: unreleased
+            Omitting the ``response=`` argument is deprecated and may be required
+            in a future release.
 
         Example::
 
@@ -781,6 +785,12 @@ class BleakClient:
         if response is None:
             # if not specified, prefer write-with-response over write-without-
             # response if it is available since it is the more reliable write.
+            warn(
+                "Omitting the response argument is not recommended."
+                "Legacy usage may be not allowed in the future.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             response = "write" in characteristic.properties
 
         await self._backend.write_gatt_char(characteristic, data, response)

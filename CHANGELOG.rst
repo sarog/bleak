@@ -9,6 +9,26 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 
 `Unreleased`_
 =============
+Fixed
+-----
+
+Changed
+-------
+* Made `response` argument of class ``BleakClient.write_gatt_char()`` explicitly optional. #1730
+* Deprecated omitting the ``response`` argument.
+* Updated Poetry build system version to ``>=2.0``.
+* Log to stderr instead of stdout when ``BLEAK_LOGGING`` is enabled.
+* Updated ``winrt`` backend to use PyWinRT >= 3.1.
+
+Fixed
+-----
+* Fixed possible ``KeyError`` when getting services in BlueZ backend. Fixes #1435.
+* Fix D-Bus connection leak when connecting to a device fails in BlueZ backend. Fixes #1698.
+* Fixed possible deadlock when connecting on WinRT backend when device is already connected.
+
+Removed
+-------
+* Removed support for Python 3.8. The minimum supported version is now Python 3.9.
 
 `0.22.3`_ (2024-10-05)
 ======================

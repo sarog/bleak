@@ -67,7 +67,7 @@ copyright = "2020, Henrik Blidh"
 #
 # The full version, including alpha/beta/rc tags.
 with open(PROJECT_ROOT_DIR / "pyproject.toml", "rb") as f:
-    release = tomli.load(f)["tool"]["poetry"]["version"]
+    release = tomli.load(f)["project"]["version"]
 # The short X.Y version.
 version = ".".join(release.split(".")[:2])
 
@@ -83,7 +83,7 @@ version = ".".join(release.split(".")[:2])
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", ".venv"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -115,7 +115,6 @@ pygments_style = "sphinx"
 autodoc_mock_imports = [
     "android",
     "async_timeout",
-    "bleak_winrt",
     "winrt",
     "CoreBluetooth",
     "dbus_fast",
