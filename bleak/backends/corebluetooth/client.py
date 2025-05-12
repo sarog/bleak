@@ -8,7 +8,7 @@ import asyncio
 import logging
 import sys
 import uuid
-from typing import Optional, Set, Union
+from typing import Any, Dict, Optional, Set, Union
 
 if sys.version_info < (3, 12):
     from typing_extensions import Buffer
@@ -84,7 +84,7 @@ class BleakClientCoreBluetooth(BaseBleakClient):
     def __str__(self) -> str:
         return "BleakClientCoreBluetooth ({})".format(self.address)
 
-    async def connect(self, **kwargs) -> bool:
+    async def connect(self, pair: bool, **kwargs) -> bool:
         """Connect to a specified Peripheral
 
         Keyword Args:
@@ -94,6 +94,9 @@ class BleakClientCoreBluetooth(BaseBleakClient):
             Boolean representing connection status.
 
         """
+        if pair:
+            logger.debug("Explicit pairing is not available in CoreBluetooth.")
+
         timeout = kwargs.get("timeout", self._timeout)
         if self._peripheral is None:
             device = await BleakScanner.find_device_by_address(
@@ -354,6 +357,8 @@ class BleakClientCoreBluetooth(BaseBleakClient):
         self,
         characteristic: BleakGATTCharacteristic,
         callback: NotifyCallback,
+        *,
+        cb: Dict[str, Any] = {},
         **kwargs,
     ) -> None:
         """
@@ -361,7 +366,11 @@ class BleakClientCoreBluetooth(BaseBleakClient):
         """
         assert self._delegate is not None
 
-        await self._delegate.start_notifications(characteristic.obj, callback)
+        await self._delegate.start_notifications(
+            characteristic.obj,
+            callback,
+            cb.get("notification_discriminator"),
+        )
 
     async def stop_notify(
         self, char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID]

@@ -12,6 +12,10 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 Fixed
 -----
 
+Added
+-----
+* Added ``pair`` parameter to ``BleakClient()`` constructor to allow pairing before connecting. Fixes #309.
+
 Changed
 -------
 * Made `response` argument of class ``BleakClient.write_gatt_char()`` explicitly optional. #1730
@@ -19,12 +23,14 @@ Changed
 * Updated Poetry build system version to ``>=2.0``.
 * Log to stderr instead of stdout when ``BLEAK_LOGGING`` is enabled.
 * Updated ``winrt`` backend to use PyWinRT >= 3.1.
+* Added ``notification_discriminator`` parameter to start_notify on CoreBluetooth backend
 
 Fixed
 -----
 * Fixed possible ``KeyError`` when getting services in BlueZ backend. Fixes #1435.
 * Fix D-Bus connection leak when connecting to a device fails in BlueZ backend. Fixes #1698.
 * Fixed possible deadlock when connecting on WinRT backend when device is already connected.
+* Fixed getting notifications from devices connected to BLE adapters with index >9 (hci10, hci11, ...)
 
 Removed
 -------
