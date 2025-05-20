@@ -6,23 +6,22 @@ Created on 2018-04-23 by hbldh <henrik.blidh@nedomkull.com>
 
 """
 import abc
-import asyncio
 import os
 import platform
 import sys
-import uuid
-from typing import Callable, Optional, Type, Union
-from warnings import warn
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 if sys.version_info < (3, 12):
     from typing_extensions import Buffer
 else:
     from collections.abc import Buffer
 
-from ..exc import BleakError
-from .characteristic import BleakGATTCharacteristic
-from .device import BLEDevice
-from .service import BleakGATTServiceCollection
+from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.backends.descriptor import BleakGATTDescriptor
+from bleak.backends.device import BLEDevice
+from bleak.backends.service import BleakGATTServiceCollection
+from bleak.exc import BleakError
 
 NotifyCallback = Callable[[bytearray], None]
 
@@ -42,7 +41,7 @@ class BaseBleakClient(abc.ABC):
             argument, which will be this client object.
     """
 
-    def __init__(self, address_or_ble_device: Union[BLEDevice, str], **kwargs):
+    def __init__(self, address_or_ble_device: Union[BLEDevice, str], **kwargs: Any):
         if isinstance(address_or_ble_device, BLEDevice):
             self.address = address_or_ble_device.address
         else:
@@ -64,7 +63,7 @@ class BaseBleakClient(abc.ABC):
     # Connectivity methods
 
     def set_disconnected_callback(
-        self, callback: Optional[Callable[[], None]], **kwargs
+        self, callback: Optional[Callable[[], None]], **kwargs: Any
     ) -> None:
         """Set the disconnect callback.
         The callback will only be called on unsolicited disconnect event.
@@ -78,7 +77,7 @@ class BaseBleakClient(abc.ABC):
         self._disconnected_callback = callback
 
     @abc.abstractmethod
-    async def connect(self, pair: bool, **kwargs) -> bool:
+    async def connect(self, pair: bool, **kwargs: Any) -> None:
         """Connect to the specified GATT server.
 
         Args:
@@ -87,30 +86,21 @@ class BaseBleakClient(abc.ABC):
 
             Backends that can't implement this should make an appropriate
             log message and ignore the parameter.
-
-        Returns:
-            Boolean representing connection status.
-
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def disconnect(self) -> bool:
-        """Disconnect from the specified GATT server.
-
-        Returns:
-            Boolean representing connection status.
-
-        """
+    async def disconnect(self) -> None:
+        """Disconnect from the specified GATT server."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def pair(self, *args, **kwargs) -> bool:
+    async def pair(self, *args: Any, **kwargs: Any) -> None:
         """Pair with the peripheral."""
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def unpair(self) -> bool:
+    async def unpair(self) -> None:
         """Unpair with the peripheral."""
         raise NotImplementedError()
 
@@ -125,54 +115,16 @@ class BaseBleakClient(abc.ABC):
         """
         raise NotImplementedError()
 
-    class _DeprecatedIsConnectedReturn:
-        """Wrapper for ``is_connected`` return value to provide deprecation warning."""
-
-        def __init__(self, value: bool):
-            self._value = value
-
-        def __bool__(self):
-            return self._value
-
-        def __call__(self) -> bool:
-            warn(
-                "is_connected has been changed to a property. Calling it as an async method will be removed in a future version",
-                FutureWarning,
-                stacklevel=2,
-            )
-            f = asyncio.Future()
-            f.set_result(self._value)
-            return f
-
-        def __repr__(self) -> str:
-            return repr(self._value)
-
-    # GATT services methods
-
-    @abc.abstractmethod
-    async def get_services(self, **kwargs) -> BleakGATTServiceCollection:
-        """Get all services registered for this GATT server.
-
-        Returns:
-           A :py:class:`bleak.backends.service.BleakGATTServiceCollection` with this device's services tree.
-
-        """
-        raise NotImplementedError()
-
     # I/O methods
 
     @abc.abstractmethod
     async def read_gatt_char(
-        self,
-        char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID],
-        **kwargs,
+        self, characteristic: BleakGATTCharacteristic, **kwargs: Any
     ) -> bytearray:
         """Perform read operation on the specified GATT characteristic.
 
         Args:
-            char_specifier (BleakGATTCharacteristic, int, str or UUID): The characteristic to read from,
-                specified by either integer handle, UUID or directly by the
-                BleakGATTCharacteristic object representing it.
+            characteristic (BleakGATTCharacteristic): The characteristic to read from.
 
         Returns:
             (bytearray) The read data.
@@ -181,24 +133,23 @@ class BaseBleakClient(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def read_gatt_descriptor(self, handle: int, **kwargs) -> bytearray:
+    async def read_gatt_descriptor(
+        self, descriptor: BleakGATTDescriptor, **kwargs: Any
+    ) -> bytearray:
         """Perform read operation on the specified GATT descriptor.
 
         Args:
-            handle (int): The handle of the descriptor to read from.
+            descriptor: The descriptor to read from.
 
         Returns:
-            (bytearray) The read data.
+            The read data.
 
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
     async def write_gatt_char(
-        self,
-        characteristic: BleakGATTCharacteristic,
-        data: Buffer,
-        response: bool,
+        self, characteristic: BleakGATTCharacteristic, data: Buffer, response: bool
     ) -> None:
         """
         Perform a write operation on the specified GATT characteristic.
@@ -211,11 +162,13 @@ class BaseBleakClient(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def write_gatt_descriptor(self, handle: int, data: Buffer) -> None:
+    async def write_gatt_descriptor(
+        self, descriptor: BleakGATTDescriptor, data: Buffer
+    ) -> None:
         """Perform a write operation on the specified GATT descriptor.
 
         Args:
-            handle: The handle of the descriptor to read from.
+            descriptor: The descriptor to read from.
             data: The data to send (any bytes-like object).
 
         """
@@ -226,7 +179,7 @@ class BaseBleakClient(abc.ABC):
         self,
         characteristic: BleakGATTCharacteristic,
         callback: NotifyCallback,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Activate notifications/indications on a characteristic.
@@ -240,21 +193,18 @@ class BaseBleakClient(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def stop_notify(
-        self, char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID]
-    ) -> None:
+    async def stop_notify(self, characteristic: BleakGATTCharacteristic) -> None:
         """Deactivate notification/indication on a specified characteristic.
 
         Args:
-            char_specifier (BleakGATTCharacteristic, int, str or UUID): The characteristic to deactivate
-                notification/indication on, specified by either integer handle, UUID or
-                directly by the BleakGATTCharacteristic object representing it.
+            characteristic (BleakGATTCharacteristic): The characteristic to deactivate
+                notification/indication on.
 
         """
         raise NotImplementedError()
 
 
-def get_platform_client_backend_type() -> Type[BaseBleakClient]:
+def get_platform_client_backend_type() -> type[BaseBleakClient]:
     """
     Gets the platform-specific :class:`BaseBleakClient` type.
     """

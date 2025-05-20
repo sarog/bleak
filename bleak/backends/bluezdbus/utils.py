@@ -1,4 +1,10 @@
-# -*- coding: utf-8 -*-
+import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    if sys.platform != "linux":
+        assert False, "This backend is only available on Linux"
+
 import os
 from typing import Optional
 
@@ -6,7 +12,7 @@ from dbus_fast.auth import AuthExternal
 from dbus_fast.constants import MessageType
 from dbus_fast.message import Message
 
-from ...exc import BleakDBusError, BleakError
+from bleak.exc import BleakDBusError, BleakError
 
 
 def assert_reply(reply: Message) -> None:
@@ -17,6 +23,7 @@ def assert_reply(reply: Message) -> None:
         AssertionError: if the message type is not ``MessageType.METHOD_RETURN``
     """
     if reply.message_type == MessageType.ERROR:
+        assert reply.error_name
         raise BleakDBusError(reply.error_name, reply.body)
     assert reply.message_type == MessageType.METHOD_RETURN
 
