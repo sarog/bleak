@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
+# Created on 2019-03-19 by hbldh <henrik.blidh@nedomkull.com>
 """
 Interface class for the Bleak representation of a GATT Characteristic
-
-Created on 2019-03-19 by hbldh <henrik.blidh@nedomkull.com>
-
 """
 from __future__ import annotations
 
@@ -12,6 +10,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Union
 from uuid import UUID
 
+from bleak.assigned_numbers import CharacteristicPropertyName
 from bleak.backends.descriptor import BleakGATTDescriptor
 from bleak.uuids import normalize_uuid_str, uuidstr_to_str
 
@@ -41,7 +40,7 @@ class BleakGATTCharacteristic:
         obj: Any,
         handle: int,
         uuid: str,
-        properties: list[str],
+        properties: list[CharacteristicPropertyName],
         max_write_without_response_size: Callable[[], int],
         service: BleakGATTService,
     ):
@@ -92,7 +91,7 @@ class BleakGATTCharacteristic:
         return uuidstr_to_str(self.uuid)
 
     @property
-    def properties(self) -> list[str]:
+    def properties(self) -> list[CharacteristicPropertyName]:
         """Properties of this characteristic"""
         return self._properties
 

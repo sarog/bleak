@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
+# Created on 2020-08-19 by hbldh <henrik.blidh@nedomkull.com>
 """
 BLE Client for Windows 10 systems, implemented with WinRT.
-
-Created on 2020-08-19 by hbldh <henrik.blidh@nedomkull.com>
 """
 import sys
 from typing import TYPE_CHECKING
+from warnings import warn
 
 if TYPE_CHECKING:
     if sys.platform != "win32":
@@ -172,7 +172,6 @@ class BleakClientWinRT(BaseBleakClient):
         self._requester: Optional[BluetoothLEDevice] = None
         self._services_changed_events: list[asyncio.Event] = []
         self._session_active_events: list[asyncio.Event] = []
-        self._session_closed_events: list[asyncio.Event] = []
         self._session: Optional[GattSession] = None
         self._notification_callbacks: dict[int, EventRegistrationToken] = {}
 
@@ -307,9 +306,6 @@ class BleakClientWinRT(BaseBleakClient):
             elif args.status == GattSessionStatus.CLOSED and is_connect_complete:
                 if self._disconnected_callback:
                     self._disconnected_callback()
-
-                for e in self._session_closed_events:
-                    e.set()
 
                 handle_disconnect()
 
@@ -479,26 +475,13 @@ class BleakClientWinRT(BaseBleakClient):
                 service.obj.close()
             self.services = None
 
-        # Without this, disposing the BluetoothLEDevice won't disconnect it
         if self._session:
-            self._session.maintain_connection = False
-            # calling self._session.close() here prevents any further GATT
-            # session status events, so we defer that until after the session
-            # is no longer active
+            self._session.close()
+            self._session = None
 
-        # Dispose of the BluetoothLEDevice and see that the session
-        # status is now closed.
         if self._requester:
-            event = asyncio.Event()
-            self._session_closed_events.append(event)
-            try:
-                self._requester.close()
-                # sometimes it can take over one minute before Windows decides
-                # to end the GATT session/disconnect the device
-                async with async_timeout(120):
-                    await event.wait()
-            finally:
-                self._session_closed_events.remove(event)
+            self._requester.close()
+            self._requester = None
 
     @property
     @override
@@ -524,7 +507,6 @@ class BleakClientWinRT(BaseBleakClient):
     @override
     async def pair(
         self,
-        protection_level: Optional[DevicePairingProtectionLevel] = None,
         **kwargs: Any,
     ) -> None:
         """Attempts to pair with the device.
@@ -535,7 +517,12 @@ class BleakClientWinRT(BaseBleakClient):
                 1. None - Pair the device using no levels of protection.
                 2. Encryption - Pair the device using encryption.
                 3. EncryptionAndAuthentication - Pair the device using
-                   encryption and authentication. (This will not work in Bleak...)
+                   encryption and authentication.
+
+                .. versionchanged:: unreleased
+                    Issues :class:`DeprecationWarning` if used. The default
+                    behavior has changed and this argument should no longer
+                    be needed.
         """
         assert self._requester
 
@@ -544,12 +531,14 @@ class BleakClientWinRT(BaseBleakClient):
             self._requester.device_information.id
         )
 
-        if not device_information.pairing.can_pair:
-            raise BleakError("Device does not support pairing")
-
         if device_information.pairing.is_paired:
             logging.debug("Device is already paired. Skipping pairing.")
             return
+
+        if not device_information.pairing.can_pair:
+            raise BleakError("Device does not support pairing")
+
+        protection_level = kwargs.get("protection_level")
 
         # Currently only supporting Just Works solutions...
         ceremony = DevicePairingKinds.CONFIRM_ONLY
@@ -565,11 +554,33 @@ class BleakClientWinRT(BaseBleakClient):
 
         try:
             if protection_level is not None:
+                warn(
+                    "protection_level is deprecated and will be removed in a future version. The default protection level has changed, so it should be safe to omit this argument.",
+                    DeprecationWarning,
+                    2,
+                )
                 pairing_result = await custom_pairing.pair_with_protection_level_async(
                     ceremony, protection_level
                 )
             else:
-                pairing_result = await custom_pairing.pair_async(ceremony)
+                for level in (
+                    DevicePairingProtectionLevel.ENCRYPTION_AND_AUTHENTICATION,
+                    DevicePairingProtectionLevel.ENCRYPTION,
+                ):
+                    pairing_result = (
+                        await custom_pairing.pair_with_protection_level_async(
+                            ceremony, level
+                        )
+                    )
+                    if (
+                        pairing_result.status
+                        != DevicePairingResultStatus.PROTECTION_LEVEL_COULD_NOT_BE_MET
+                    ):
+                        break
+
+                    logger.debug("Protection level %r not met. Retrying.", level)
+                else:
+                    pairing_result = await custom_pairing.pair_async(ceremony)
 
         except Exception as e:
             raise BleakError("Failure trying to pair with device!") from e
@@ -580,12 +591,22 @@ class BleakClientWinRT(BaseBleakClient):
             DevicePairingResultStatus.PAIRED,
             DevicePairingResultStatus.ALREADY_PAIRED,
         ):
-            raise BleakError(f"Could not pair with device: {pairing_result.status}")
+            raise BleakError(
+                f"Could not pair with device: {pairing_result.status.name}"
+            )
 
-        logger.debug(
-            "Paired to device with protection level %r.",
-            pairing_result.protection_level_used,
-        )
+        if logger.isEnabledFor(logging.DEBUG):
+            # pairing_result.protection_level_used doesn't seem to return
+            # accurate information if we don't update the DeviceInformation
+            # first.
+            device_information = await DeviceInformation.create_from_id_async(
+                self._requester.device_information.id
+            )
+
+            logger.debug(
+                "Paired to device with protection level %s.",
+                pairing_result.protection_level_used.name,
+            )
 
     @override
     async def unpair(self) -> None:
