@@ -15,7 +15,7 @@ import os
 import warnings
 from collections.abc import Callable
 from contextlib import AsyncExitStack
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 if sys.version_info < (3, 12):
     from typing_extensions import Buffer, override
@@ -284,6 +284,15 @@ class BleakClientBlueZDBus(BaseBleakClient):
                                     member="Pair",
                                 )
                             )
+
+                            # For resolvable private addresses, the address will
+                            # change after pairing, so we need to update that.
+                            # Hopefully there is no race condition here. D-Bus
+                            # traffic capture shows that Address change happens
+                            # at the same time as Paired property change and
+                            # that PropertiesChanged signal is sent before the
+                            # "Pair" reply is sent.
+                            self.address = manager.get_device_address(self._device_path)
                         else:
                             reply = await self._bus.call(
                                 Message(
@@ -509,6 +518,16 @@ class BleakClientBlueZDBus(BaseBleakClient):
         assert reply
         assert_reply(reply)
 
+        # For resolvable private addresses, the address will
+        # change after pairing, so we need to update that.
+        # Hopefully there is no race condition here. D-Bus
+        # traffic capture shows that Address change happens
+        # at the same time as Paired property change and
+        # that PropertiesChanged signal is sent before the
+        # "Pair" reply is sent.
+        manager = await get_global_bluez_manager()
+        self.address = manager.get_device_address(self._device_path)
+
     @override
     async def unpair(self) -> None:
         """Unpair with the peripheral."""
@@ -575,6 +594,11 @@ class BleakClientBlueZDBus(BaseBleakClient):
         If a device uses encryption on characteristics, it will need to be bonded
         first before calling this method.
         """
+
+        assert (
+            self.services is not None
+        ), "Services must be acquired before acquiring MTU"
+
         # This will try to get the "best" characteristic for getting the MTU.
         # We would rather not start notifications if we don't have to.
         try:
@@ -880,8 +904,6 @@ class BleakClientBlueZDBus(BaseBleakClient):
         """
         Activate notifications/indications on a characteristic.
         """
-        characteristic = cast(BleakGATTCharacteristic, characteristic)
-
         self._notification_callbacks[characteristic.obj[0]] = callback
 
         assert self._bus is not None
@@ -907,6 +929,8 @@ class BleakClientBlueZDBus(BaseBleakClient):
         """
         if not self.is_connected:
             raise BleakError("Not connected")
+
+        assert self._bus is not None
 
         reply = await self._bus.call(
             Message(
